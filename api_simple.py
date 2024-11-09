@@ -1,49 +1,42 @@
-from flask import Flask, request, jsonify
+import os
 import numpy as np
+from flask import Flask, request, jsonify
+import tensorflow as tf
 from PIL import Image
-from tensorflow.keras.models import load_model
 import io
-import base64
-
-# Charger le modèle de segmentation
-model = load_model('model_simple.h5')
 
 app = Flask(__name__)
 
-# Fonction pour prétraiter l'image
-def preprocess_image(image):
-    image = image.resize((256, 256))  # Ajuster la taille à celle attendue par le modèle
-    image_array = np.array(image) / 255.0  # Normaliser l'image
-    image_array = np.expand_dims(image_array, axis=0)  # Ajouter la dimension batch
+# Charger le modèle (remplacez 'segmentation_model.h5' par le nom de votre fichier de modèle)
+model = tf.keras.models.load_model('model_simple.h5')
+
+def preprocess_image(image_data):
+    image = Image.open(io.BytesIO(image_data)).convert("RGB")
+    image = image.resize((256, 256))  # Redimensionnez selon les dimensions de votre modèle
+    image_array = np.array(image) / 255.0
+    image_array = np.expand_dims(image_array, axis=0)
     return image_array
 
-# Point de terminaison pour la prédiction
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Vérifier si l'image est présente dans la requête
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image provided'}), 400
+    if 'file' not in request.files:
+        return jsonify({'error': 'Aucun fichier trouvé'}), 400
 
-    # Charger l'image à partir de la requête
-    image_file = request.files['image']
-    image = Image.open(image_file)
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nom de fichier vide'}), 400
 
-    # Prétraiter l'image
-    preprocessed_image = preprocess_image(image)
+    try:
+        image_array = preprocess_image(file.read())
+        prediction = model.predict(image_array)[0]
+        
+        # Post-traitement : ici, on redimensionne l'image prédite à la taille originale si nécessaire
+        prediction = (prediction > 0.5).astype(np.uint8)  # Seuil de binarisation
+        
+        return jsonify({'prediction': prediction.tolist()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    # Faire la prédiction
-    mask = model.predict(preprocessed_image)
-    mask = np.argmax(mask, axis=-1)  # Pour une sortie multi-classe
-    mask = np.squeeze(mask, axis=0)
-
-    # Convertir le masque en image et en base64 pour le retour JSON
-    mask_image = Image.fromarray((mask * 255).astype(np.uint8))  # Assurez-vous que le masque est bien au format uint8
-    buffered = io.BytesIO()
-    mask_image.save(buffered, format="PNG")
-    mask_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-    # Renvoyer le masque encodé en base64
-    return jsonify({'mask': mask_base64})
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
