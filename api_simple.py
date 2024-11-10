@@ -13,7 +13,7 @@ model = tf.keras.models.load_model('model_simple.h5')
 def preprocess_image(image_data):
     try:
         image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        image = image.resize((256, 256))  # Redimensionnez selon les dimensions de votre modèle
+        image = image.resize((256, 256))
         image_array = np.array(image) / 255.0
         image_array = np.expand_dims(image_array, axis=0)
         return image_array
@@ -28,27 +28,34 @@ def home():
 def predict():
     # Vérification de la présence du fichier
     if 'file' not in request.files:
+        app.logger.info("Aucun fichier trouvé dans la requête.")
         return jsonify({'error': 'Aucun fichier trouvé'}), 400
 
     file = request.files['file']
     if file.filename == '':
+        app.logger.info("Le fichier a un nom vide.")
         return jsonify({'error': 'Nom de fichier vide'}), 400
 
     try:
         # Prétraitement de l'image
+        app.logger.info("Prétraitement de l'image en cours.")
         image_array = preprocess_image(file.read())
         
         # Prédiction
+        app.logger.info("Prédiction en cours avec le modèle.")
         prediction = model.predict(image_array)[0]
         
         # Post-traitement : application d'un seuil de binarisation
         prediction = (prediction > 0.5).astype(np.uint8)
         
         # Retour de la prédiction
+        app.logger.info("Prédiction réussie, retour des résultats.")
         return jsonify({'prediction': prediction.tolist()})
     except ValueError as e:
+        app.logger.error(f"Erreur de traitement d'image: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
+        app.logger.error(f"Erreur interne: {str(e)}")
         return jsonify({'error': 'Erreur interne: ' + str(e)}), 500
 
 if __name__ == "__main__":
