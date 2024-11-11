@@ -13,6 +13,16 @@ model = load_model('model_simple.h5')
 
 # Parameters for image preprocessing
 img_height, img_width = 256, 256
+cats = {
+    'void': [0, 1, 2, 3, 4, 5, 6],
+    'flat': [7, 8, 9, 10],
+    'construction': [11, 12, 13, 14, 15, 16],
+    'object': [17, 18, 19, 20],
+    'nature': [21, 22],
+    'sky': [23],
+    'human': [24, 25],
+    'vehicle': [26, 27, 28, 29, 30, 31, 32, 33, -1]
+}
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -48,10 +58,6 @@ def predict():
     # Perform the segmentation
     segmented_image = segment_image(img)
     
-    # Check if the segmentation has a valid result (e.g., no all-zero values)
-    if np.all(segmented_image == 0):
-        return jsonify({'error': 'Segmentation failed. The mask is all zeros.'})
-
     # Convert the segmented mask to a base64-encoded string for returning in the response
     segmented_image_pil = Image.fromarray(segmented_image.astype(np.uint8))  # Convert to image
     buffer = io.BytesIO()
