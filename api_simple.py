@@ -31,17 +31,20 @@ def segment_image(img):
     # Predict the segmentation mask
     prediction = model.predict(img)
     
+    # Affichage des valeurs brutes pour le débogage
+    print("Raw prediction shape:", prediction.shape)
+    print("Raw prediction values (first few pixels):", prediction[0, :5, :5, :])
+    
     # Post-process the prediction (convert to one-hot encoding)
     prediction = np.argmax(prediction, axis=-1)  # Get the most probable class per pixel
     
-    # Convert the mask to a binary mask (0 or 1) and scale it to [0, 255] for visibility
-    segmented_image = prediction[0]  # Remove the batch dimension
-    segmented_image = segmented_image.astype(np.uint8)  # Ensure the mask is in uint8 format
-    
     # Debugging: Check unique values in the predicted mask
-    print("Unique values in predicted mask:", np.unique(segmented_image))
+    print("Unique values in predicted mask:", np.unique(prediction[0]))
     
     # Convert binary mask to [0, 255] for visibility
+    segmented_image = prediction[0].astype(np.uint8)  # Remove the batch dimension
+    
+    # Multiplying by 255 to make sure the mask is visible
     segmented_image = segmented_image * 255
     
     return segmented_image
