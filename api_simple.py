@@ -1,3 +1,5 @@
+
+
 import os
 from flask import Flask, request, jsonify
 import numpy as np
@@ -13,6 +15,16 @@ model = load_model('model_simple.h5')
 
 # Parameters for image preprocessing
 img_height, img_width = 256, 256
+cats = {
+    'void': [0, 1, 2, 3, 4, 5, 6],
+    'flat': [7, 8, 9, 10],
+    'construction': [11, 12, 13, 14, 15, 16],
+    'object': [17, 18, 19, 20],
+    'nature': [21, 22],
+    'sky': [23],
+    'human': [24, 25],
+    'vehicle': [26, 27, 28, 29, 30, 31, 32, 33, -1]
+}
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -31,23 +43,9 @@ def segment_image(img):
     # Predict the segmentation mask
     prediction = model.predict(img)
     
-    # Affichage des valeurs brutes pour le débogage
-    print("Raw prediction shape:", prediction.shape)
-    print("Raw prediction values (first few pixels):", prediction[0, :5, :5, :])
-    
     # Post-process the prediction (convert to one-hot encoding)
     prediction = np.argmax(prediction, axis=-1)  # Get the most probable class per pixel
-    
-    # Debugging: Check unique values in the predicted mask
-    print("Unique values in predicted mask:", np.unique(prediction[0]))
-    
-    # Convert binary mask to [0, 255] for visibility
-    segmented_image = prediction[0].astype(np.uint8)  # Remove the batch dimension
-    
-    # Multiplying by 255 to make sure the mask is visible
-    segmented_image = segmented_image * 255
-    
-    return segmented_image
+    return prediction[0]  # Remove the batch dimension
 
 # API route to handle image segmentation
 @app.route('/predict', methods=['POST'])
@@ -63,10 +61,7 @@ def predict():
     segmented_image = segment_image(img)
     
     # Convert the segmented mask to a base64-encoded string for returning in the response
-    segmented_image_pil = Image.fromarray(segmented_image)  # Convert to image
-    segmented_image_pil = segmented_image_pil.convert("L")  # Convert to grayscale
-    
-    # Save as PNG and return as base64-encoded string
+    segmented_image_pil = Image.fromarray(segmented_image.astype(np.uint8))  # Convert to image
     buffer = io.BytesIO()
     segmented_image_pil.save(buffer, format="PNG")
     segmented_image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
