@@ -72,5 +72,5 @@ def predict():
 
 if __name__ == '__main__':
     # Ensure Flask app listens on the port provided by Heroku
-    port = int(os.environ.get("PORT", 5020))  # Default to 5020 if not provided
+    port = int(os.environ.get("PORT", 5000))  # Default to 5020 if not provided
     app.run(host="0.0.0.0", port=port)  # Use 0.0.0.0 to allow connections from external sources
