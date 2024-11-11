@@ -31,18 +31,17 @@ def segment_image(img):
     # Predict the segmentation mask
     prediction = model.predict(img)
     
-    # Debugging: print the prediction shape and values
-    print("Prediction shape:", prediction.shape)
-    print("Prediction values (first few pixels):", prediction[0, :5, :5, :])
-    
     # Post-process the prediction (convert to one-hot encoding)
     prediction = np.argmax(prediction, axis=-1)  # Get the most probable class per pixel
     
-    # Debugging: print the mask values
-    print("Predicted mask shape:", prediction.shape)
-    print("Predicted mask values (first few pixels):", prediction[:5, :5])
+    # Convert the mask to a binary mask (0 or 1) and scale it to [0, 255] for visibility
+    segmented_image = prediction[0]  # Remove the batch dimension
+    segmented_image = segmented_image.astype(np.uint8)  # Ensure the mask is in uint8 format
     
-    return prediction[0]  # Remove the batch dimension
+    # Convert binary mask to [0, 255] for visibility
+    segmented_image = segmented_image * 255
+    
+    return segmented_image
 
 # API route to handle image segmentation
 @app.route('/predict', methods=['POST'])
@@ -58,7 +57,7 @@ def predict():
     segmented_image = segment_image(img)
     
     # Convert the segmented mask to a base64-encoded string for returning in the response
-    segmented_image_pil = Image.fromarray(segmented_image.astype(np.uint8))  # Convert to image
+    segmented_image_pil = Image.fromarray(segmented_image)  # Convert to image
     segmented_image_pil = segmented_image_pil.convert("L")  # Convert to grayscale
     
     # Save as PNG and return as base64-encoded string
