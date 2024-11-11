@@ -43,6 +43,11 @@ def segment_image(img):
     
     # Post-process the prediction (convert to one-hot encoding)
     prediction = np.argmax(prediction, axis=-1)  # Get the most probable class per pixel
+
+    # If you want a binary mask (e.g., foreground vs background)
+    # Apply threshold to convert probabilities to binary mask (0 or 1)
+    # prediction = (prediction > 0.5).astype(np.uint8)  # Uncomment if using binary output
+    
     return prediction[0]  # Remove the batch dimension
 
 # API route to handle image segmentation
@@ -60,6 +65,10 @@ def predict():
     
     # Convert the segmented mask to a base64-encoded string for returning in the response
     segmented_image_pil = Image.fromarray(segmented_image.astype(np.uint8))  # Convert to image
+    
+    # Ensure the mask has values between 0 and 255 for proper display
+    segmented_image_pil = segmented_image_pil.convert("L")  # Convert to grayscale
+    
     buffer = io.BytesIO()
     segmented_image_pil.save(buffer, format="PNG")
     segmented_image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
