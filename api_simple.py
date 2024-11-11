@@ -1,63 +1,56 @@
-import os
-import numpy as np
 from flask import Flask, request, jsonify
-import tensorflow as tf
-from PIL import Image
-import io
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+import numpy as np
+import os
 
+# Initialize Flask app
 app = Flask(__name__)
 
-# Charger le modèle
-model = tf.keras.models.load_model('model_simple.h5')
+# Load your trained segmentation model
+model = load_model('model_simple.h5')
 
-def preprocess_image(image_data):
-    try:
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        image = image.resize((256, 256))
-        image_array = np.array(image) / 255.0
-        image_array = np.expand_dims(image_array, axis=0)
-        return image_array
-    except Exception as e:
-        raise ValueError("Erreur dans le traitement de l'image: " + str(e))
+# Define image size and categories
+img_height, img_width = 256, 256
+cats = {
+    'void': [0, 1, 2, 3, 4, 5, 6],
+    'flat': [7, 8, 9, 10],
+    'construction': [11, 12, 13, 14, 15, 16],
+    'object': [17, 18, 19, 20],
+    'nature': [21, 22],
+    'sky': [23],
+    'human': [24, 25],
+    'vehicle': [26, 27, 28, 29, 30, 31, 32, 33, -1]
+}
 
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({'message': 'API de segmentation d\'image est en ligne'}), 200
+def preprocess_image(img):
+    # Resize and normalize the image
+    img = image.img_to_array(image.load_img(img, target_size=(img_height, img_width))) / 255.0
+    return np.expand_dims(img, axis=0)
+
+def decode_mask(mask, categories):
+    mask_one_hot = np.zeros((img_height, img_width, len(categories)))
+    for i in range(-1, 34):
+        for idx, cat in enumerate(categories):
+            if i in cats[cat]:
+                mask_one_hot[:, :, idx] = np.logical_or(mask_one_hot[:, :, idx], (mask == i))
+    return mask_one_hot
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Vérification de la présence du fichier
-    if 'file' not in request.files:
-        app.logger.info("Aucun fichier trouvé dans la requête.")
-        return jsonify({'error': 'Aucun fichier trouvé'}), 400
+    if 'image' not in request.files:
+        return jsonify({"error": "No image provided"}), 400
 
-    file = request.files['file']
-    if file.filename == '':
-        app.logger.info("Le fichier a un nom vide.")
-        return jsonify({'error': 'Nom de fichier vide'}), 400
+    # Load and preprocess the image
+    img = request.files['image']
+    img = preprocess_image(img)
 
-    try:
-        # Prétraitement de l'image
-        app.logger.info("Prétraitement de l'image en cours.")
-        image_array = preprocess_image(file.read())
-        
-        # Prédiction
-        app.logger.info("Prédiction en cours avec le modèle.")
-        prediction = model.predict(image_array)[0]
-        
-        # Post-traitement : application d'un seuil de binarisation
-        prediction = (prediction > 0.5).astype(np.uint8)
-        
-        # Retour de la prédiction
-        app.logger.info("Prédiction réussie, retour des résultats.")
-        return jsonify({'prediction': prediction.tolist()})
-    except ValueError as e:
-        app.logger.error(f"Erreur de traitement d'image: {str(e)}")
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        app.logger.error(f"Erreur interne: {str(e)}")
-        return jsonify({'error': 'Erreur interne: ' + str(e)}), 500
+    # Run the model prediction
+    mask_pred = model.predict(img)
+    mask_pred = np.argmax(mask_pred, axis=-1).squeeze()  # Get predicted class
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # Convert to a list and return the mask
+    return jsonify(mask=mask_pred.tolist())
+
+if __name__ == '__main__':
+    app.run(debug=True)
